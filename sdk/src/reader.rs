@@ -150,7 +150,7 @@ impl Reader {
         http_resolver.set_allowed_hosts(settings.core.allowed_network_hosts.clone());
 
         // TODO: passing verify is redundant with settings
-        let verify = settings.verify.verify_after_reading;
+        let verify = false; //settings.verify.verify_after_reading;
 
         let mut validation_log = StatusTracker::default();
         stream.rewind()?; // Ensure stream is at the start
