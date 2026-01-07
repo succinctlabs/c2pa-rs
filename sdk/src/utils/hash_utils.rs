@@ -335,7 +335,7 @@ where
         }
     };
 
-    if cfg!(target_arch = "wasm32") {
+    if cfg!(target_arch = "wasm32") || cfg!(target_os = "zkvm") {
         // hash the data for ranges
         for r in ranges {
             let start = r.start();
