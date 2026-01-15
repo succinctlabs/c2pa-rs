@@ -161,7 +161,7 @@ impl DataHash {
 
     /// generate the asset hash from a stream using the constructed
     /// start and length values
-    pub fn hash_from_stream<R>(&mut self, stream: &mut R) -> Result<Vec<u8>>
+    pub fn hash_from_stream<R>(&self, stream: &mut R) -> Result<Vec<u8>>
     where
         R: Read + Seek + ?Sized,
     {
