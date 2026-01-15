@@ -377,7 +377,7 @@ impl BmffHash {
 
     /// Generate the asset hash from a file asset using the constructed
     /// start and length values.
-    fn hash_from_stream<R>(&mut self, asset_stream: &mut R) -> crate::error::Result<Vec<u8>>
+    pub fn hash_from_stream<R>(&mut self, asset_stream: &mut R) -> crate::error::Result<Vec<u8>>
     where
         R: Read + Seek + ?Sized,
     {
