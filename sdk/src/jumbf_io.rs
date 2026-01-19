@@ -151,13 +151,13 @@ pub fn save_jumbf_to_memory(asset_type: &str, data: &[u8], store_bytes: &[u8]) -
 }
 
 #[cfg(feature = "file_io")]
-pub fn get_assetio_handler_from_path(asset_path: &Path) -> Option<&dyn AssetIO> {
+pub(crate) fn get_assetio_handler_from_path(asset_path: &Path) -> Option<&dyn AssetIO> {
     let ext = get_file_extension(asset_path)?;
 
     CAI_READERS.get(&ext).map(|h| h.as_ref())
 }
 
-pub(crate) fn get_assetio_handler(ext: &str) -> Option<&dyn AssetIO> {
+pub fn get_assetio_handler(ext: &str) -> Option<&dyn AssetIO> {
     let ext = ext.to_lowercase();
 
     CAI_READERS.get(&ext).map(|h| h.as_ref())
