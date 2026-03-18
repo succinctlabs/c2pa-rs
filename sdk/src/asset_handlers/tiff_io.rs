@@ -451,11 +451,7 @@ where
 
                 let subfile_ifd =
                     TiffStructure::read_ifd(input, ts.byte_order, ts.big_tiff, IfdType::Subfile)?;
-                let subfile_token = tiff_tree.new_node(subfile_ifd);
-
-                page_0_token
-                    .append_node(&mut tiff_tree, subfile_token)
-                    .map_err(|_err| Error::InvalidAsset("Bad TIFF Structure".to_string()))?;
+                let _subfile_token = page_0_token.append(&mut tiff_tree, subfile_ifd);
             }
         }
 
@@ -468,11 +464,7 @@ where
 
             let exif_ifd =
                 TiffStructure::read_ifd(input, ts.byte_order, ts.big_tiff, IfdType::Exif)?;
-            let exif_token = tiff_tree.new_node(exif_ifd);
-
-            page_0_token
-                .append_node(&mut tiff_tree, exif_token)
-                .map_err(|_err| Error::InvalidAsset("Bad TIFF Structure".to_string()))?;
+            let _exif_token = page_0_token.append(&mut tiff_tree, exif_ifd);
         }
 
         // grab GPS IFD for page 0 (DNG)
@@ -483,11 +475,7 @@ where
             //println!("GPS Reading SubIFD: {}", decoded_offset);
 
             let gps_ifd = TiffStructure::read_ifd(input, ts.byte_order, ts.big_tiff, IfdType::Gps)?;
-            let gps_token = tiff_tree.new_node(gps_ifd);
-
-            page_0_token
-                .append_node(&mut tiff_tree, gps_token)
-                .map_err(|_err| Error::InvalidAsset("Bad TIFF Structure".to_string()))?;
+            let _gps_token = page_0_token.append(&mut tiff_tree, gps_ifd);
         }
 
         (tiff_tree, page_0_token)
