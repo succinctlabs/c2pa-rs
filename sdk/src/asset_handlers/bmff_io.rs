@@ -299,6 +299,29 @@ fn read_box_header_ext<R: Read + Seek + ?Sized>(reader: &mut R) -> Result<(u8, u
     let flags = reader.read_u24::<BigEndian>()?;
     Ok((version, flags))
 }
+
+/// Detect whether a `meta` box omits the FullBox version/flags header.
+///
+/// Per ISO 14496-12 §8.11.1, `meta` is a FullBox whose first child must
+/// be `hdlr`. However, Apple QuickTime (and iOS AVAssetWriter even with
+/// `isom` brand) writes `meta` as a plain Box without the 4-byte
+/// version+flags field. We detect this by peeking at the next 8 bytes:
+/// if bytes 4..8 are `hdlr`, the data is already a child box header so
+/// no FullBox header is present. This matches the approach used by FFmpeg
+/// and Bento4.
+fn meta_box_lacks_fullbox_header<R: Read + Seek + ?Sized>(reader: &mut R) -> Result<bool> {
+    let pos = reader.stream_position()?;
+    let mut buf = [0u8; 8];
+    let ok = reader.read_exact(&mut buf).is_ok();
+    reader.seek(SeekFrom::Start(pos))?;
+
+    if !ok {
+        return Ok(false);
+    }
+
+    Ok(&buf[4..8] == b"hdlr")
+}
+
 fn write_box_header_ext<W: Write>(w: &mut W, v: u8, f: u32) -> Result<u64> {
     w.write_u8(v)?;
     w.write_u24::<BigEndian>(f)?;
@@ -369,7 +392,7 @@ pub(crate) fn write_c2pa_box<W: Write>(
 }
 
 fn write_xmp_box<W: Write>(w: &mut W, data: &[u8]) -> Result<()> {
-    let size = 8 + 16 + 4 + data.len(); // header + UUID + data
+    let size = 8 + 16 + data.len(); // header + UUID + data
     let bh = BoxHeaderLite::new(BoxType::UuidBox, size as u64, "uuid");
 
     // write out header
@@ -1193,6 +1216,12 @@ pub(crate) fn build_bmff_tree<R: Read + Seek + ?Sized>(
             break;
         }
 
+        if current + s > end {
+            return Err(Error::InvalidAsset(
+                "Box size extends beyond asset bounds".to_string(),
+            ));
+        }
+
         // Match and parse the supported atom boxes.
         match header.name {
             BoxType::UuidBox => {
@@ -1201,7 +1230,14 @@ pub(crate) fn build_bmff_tree<R: Read + Seek + ?Sized>(
                 let mut extended_type = [0u8; 16]; // 16 bytes of UUID
                 reader.read_exact(&mut extended_type)?;
 
-                let (version, flags) = read_box_header_ext(reader)?;
+                // Only C2PA ContentProvenanceBox is a FullBox with version/flags.
+                // XMP and other UUID boxes don't have this header.
+                let (version, flags) = if extended_type == C2PA_UUID {
+                    let (v, f) = read_box_header_ext(reader)?;
+                    (Some(v), Some(f))
+                } else {
+                    (None, None)
+                };
 
                 let b = BoxInfo {
                     path: header.fourcc.clone(),
@@ -1210,8 +1246,8 @@ pub(crate) fn build_bmff_tree<R: Read + Seek + ?Sized>(
                     box_type: BoxType::UuidBox,
                     parent: Some(*current_node),
                     user_type: Some(extended_type.to_vec()),
-                    version: Some(version),
-                    flags: Some(flags),
+                    version,
+                    flags,
                 };
 
                 let new_token = current_node.append(bmff_tree, b);
@@ -1242,7 +1278,20 @@ pub(crate) fn build_bmff_tree<R: Read + Seek + ?Sized>(
                 let start = box_start(reader, header.large_size)?;
 
                 let b = if FULL_BOX_TYPES.contains(&header.fourcc.as_str()) {
-                    let (version, flags) = read_box_header_ext(reader)?; // box extensions
+                    // FullBox has version and flags after the header, but for some boxes like QT
+                    // "meta" the version and flags are not present even though it is technically a
+                    // full box, so we need to conditionally read the extended header based on the
+                    // box type and in the case of "meta" we peek at the data to detect the
+                    // QuickTime exception.
+                    let (version, flags) = if BoxType::MetaBox == header.name
+                        && meta_box_lacks_fullbox_header(reader)?
+                    {
+                        (None, None)
+                    } else {
+                        let (v, f) = read_box_header_ext(reader)?;
+                        (Some(v), Some(f))
+                    };
+
                     BoxInfo {
                         path: header.fourcc.clone(),
                         offset: start,
@@ -1250,8 +1299,8 @@ pub(crate) fn build_bmff_tree<R: Read + Seek + ?Sized>(
                         box_type: header.name,
                         parent: Some(*current_node),
                         user_type: None,
-                        version: Some(version),
-                        flags: Some(flags),
+                        version,
+                        flags,
                     }
                 } else {
                     BoxInfo {
