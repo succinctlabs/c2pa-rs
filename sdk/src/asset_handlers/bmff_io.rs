@@ -1315,10 +1315,10 @@ pub(crate) fn build_bmff_tree<R: Read + Seek + ?Sized>(
                     }
                 };
 
-                let new_token = bmff_tree.new_node(b);
-                current_node
-                    .append_node(bmff_tree, new_token)
-                    .map_err(|_err| Error::InvalidAsset("Bad BMFF Graph".to_string()))?;
+                // Use `append` instead of `new_node` + `append_node` to avoid UB in
+                // atree's `node_operation` which creates a zeroed dummy `BoxInfo`
+                // (MaybeUninit::zeroed().assume_init() on a type containing String).
+                let new_token = current_node.append(bmff_tree, b);
 
                 let path = path_from_token(bmff_tree, &new_token)?;
                 add_token_to_cache(bmff_path_map, path, new_token);
